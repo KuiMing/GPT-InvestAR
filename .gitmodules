@@ -1,0 +1,3 @@
+[submodule "edgar-crawler"]
+	path = edgar-crawler
+	url = git@github.com:KuiMing/edgar-crawler.git

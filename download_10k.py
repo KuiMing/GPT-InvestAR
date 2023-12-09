@@ -4,6 +4,8 @@ import pandas as pd
 import os
 import argparse
 import sys
+import time
+import glob
 
 def download_report(url, path):
     headers = {'User-Agent': 'Mozilla/5.0'}
@@ -37,6 +39,10 @@ def main(args):
     with open(args.config_path) as json_file:
         config_dict = json.load(json_file)
     ticker_list = get_all_tickers()
+    path = glob.glob("html/*")
+    for i, j in enumerate(path):
+        path[i] = j.replace("html/", "")
+    ticker_list = list(set(ticker_list) - set(path))
     for i, ticker in enumerate(ticker_list):
         check_saved_path = os.path.join(config_dict['annual_reports_html_save_directory'], ticker)
         if os.path.exists(check_saved_path):
@@ -45,20 +51,26 @@ def main(args):
                                                                                                                   config_dict['financial_modelling_prep_api_key'])
         response = requests.get(fmp_10k_url)
         for d in json.loads(response.content):
-            filing_type = d['type']
-            if not ((filing_type.lower() == '10-k') | (filing_type.lower() == '10k')):
-                continue
-            date_string = d['fillingDate']
-            date = date_string[:10]
-            year = date_string[:4]
-            if int(year) < 2002:
-                continue
-            link = d['finalLink']
-            save_path_directory = os.path.join(config_dict['annual_reports_html_save_directory'], ticker, date)
-            if not os.path.exists(save_path_directory):
-                os.makedirs(save_path_directory)
-            save_path = os.path.join(save_path_directory, date)
-            download_report(link, save_path)
+            try:
+                filing_type = d['type']
+                if not ((filing_type.lower() == '10-k') | (filing_type.lower() == '10k')):
+                    continue
+                date_string = d['fillingDate']
+                date = date_string[:10]
+                year = date_string[:4]
+                if int(year) < 2002:
+                    continue
+                link = d['finalLink']
+                save_path_directory = os.path.join(config_dict['annual_reports_html_save_directory'], ticker, date)
+                if not os.path.exists(save_path_directory):
+                    os.makedirs(save_path_directory)
+                save_path = os.path.join(save_path_directory, date)
+                download_report(link, save_path)
+                time.sleep(0.5)
+            except:
+                print("something wrong")
+                time.sleep(60)
+                
         print('Completed: {}/{}'.format(i+1, len(ticker_list)))
     
 
