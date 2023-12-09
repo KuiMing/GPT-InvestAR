@@ -8,6 +8,10 @@ from llama_index import VectorStoreIndex, SimpleDirectoryReader
 from llama_index import GPTVectorStoreIndex, StorageContext, ServiceContext, LangchainEmbedding
 from llama_index.vector_stores import ChromaVectorStore
 from langchain.embeddings.huggingface import HuggingFaceEmbeddings
+
+__import__('pysqlite3')
+import sys
+sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
 import chromadb
 
 CHUNK_SIZE = 512
