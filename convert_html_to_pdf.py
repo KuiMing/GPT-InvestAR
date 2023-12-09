@@ -39,7 +39,9 @@ def main(args):
             else:
                 if not os.path.exists(pdf_save_dir):
                     os.makedirs(pdf_save_dir)
-                convert_html_to_pdf(ar_paths[0], pdf_save_path)
+#                 convert_html_to_pdf(ar_paths[0], pdf_save_path)
+                while not os.path.exists(pdf_save_path):
+                    os.system(f"xvfb-run wkhtmltopdf {ar_paths[0]} {pdf_save_path}")
         print('Completed: {}/{}'.format(i+1, len(symbol_paths)))
 
 if __name__ == '__main__':
