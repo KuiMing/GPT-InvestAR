@@ -14,6 +14,11 @@ from llama_index.llms import OpenAI
 from llama_index import ServiceContext, LangchainEmbedding
 from llama_index.vector_stores import ChromaVectorStore
 from langchain.embeddings.huggingface import HuggingFaceEmbeddings
+
+__import__('pysqlite3')
+import sys
+sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
+
 import chromadb
 from langchain.prompts.chat import (
     ChatPromptTemplate,
@@ -21,15 +26,28 @@ from langchain.prompts.chat import (
     SystemMessagePromptTemplate,
 )
 from llama_index.prompts import Prompt
+from langchain.llms import AzureOpenAI
+
+import logging
+
+
+logging.basicConfig(
+    filename='app-basic.log',
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+logger = logging.getLogger()
+
 
 CHUNK_SIZE = 512
 CHUNK_OVERLAP = 32
 
 def initialize_and_return_models(config_dict):
     os.environ["OPENAI_API_KEY"] = config_dict['openai_api_key']
-    load_dotenv("openai.env")
-    openai.api_key=os.getenv('OPENAI_API_KEY')
-    llm = OpenAI(model='gpt-3.5-turbo', temperature=0.5)
+    os.environ["OPENAI_API_VERSION"] = "2023-09-15-preview"
+    os.environ["AZURE_OPENAI_ENDPOINT"] = "your endpoint"
+    llm = AzureOpenAI(deployment_name="your model", temperature=0.5)
     embedding_model = LangchainEmbedding(
         HuggingFaceEmbeddings(model_name="sentence-transformers/all-mpnet-base-v2")
     )
@@ -65,17 +83,29 @@ def get_systemprompt_template(config_dict):
     text_qa_template = Prompt.from_langchain_prompt(chat_text_qa_msgs_lc)
     return text_qa_template
 
-def get_gpt_generated_feature_dict(query_engine, questions_dict):
+
+
+def get_gpt_generated_feature_dict(query_engine, feature_name, question):
     '''
     Returns:
         A dictionary with keys as question identifiers and value as GPT scores.
     '''
     response_dict = {}
-    for feature_name, question in questions_dict.items():
+#     for feature_name, question in questions_dict.items():
         #Sleep for a short duration, not to exceed openai rate limits.
-        time.sleep(0.2)
+    time.sleep(1)
+    try:
         response = query_engine.query(question)
-        response_dict[feature_name] = int(eval(response.response)['score'])
+    except Exception as e: 
+        logger.error(e)
+        time.sleep(60)
+        response_dict = get_gpt_generated_feature_dict(query_engine, feature_name, question)
+    try:
+        response_dict[feature_name] = int(response.response.split(":")[-1].replace("}" ,""))
+    except Exception as e: 
+        logger.error(e)
+        response_dict = get_gpt_generated_feature_dict(query_engine, feature_name, question)
+            
     return response_dict
 
 def load_index(llm, embedding_model, base_embeddings_path, symbol, ar_date):
@@ -124,7 +154,11 @@ def save_features(df, llm, embedding_model, config_dict, questions_dict,
         text_qa_template = get_systemprompt_template(config_dict)
         query_engine = load_query_engine(index, text_qa_template)
         #Get feature scores as dictionary
-        gpt_feature_dict = get_gpt_generated_feature_dict(query_engine, questions_dict)
+#         gpt_feature_dict = get_gpt_generated_feature_dict(query_engine, questions_dict)
+        gpt_feature_dict = dict()
+        for feature_name, question in questions_dict.items():
+            gpt_feature_dict.update(get_gpt_generated_feature_dict(query_engine, feature_name, question))
+#         print(gpt_feature_dict)
         #Convert dictionary to dataframe
         gpt_feature_df = pd.DataFrame.from_dict(gpt_feature_dict, orient='index').T
         gpt_feature_df.columns = ['feature_{}'.format(c) for c in gpt_feature_df.columns]
@@ -149,7 +183,10 @@ def save_consolidated_df(config_dict, questions_dict, targets_df,
         feature_df_full = pd.concat([feature_df_full, gpt_feature_df], ignore_index=True)
     #Convert meta_report_date column to datetime format
     feature_df_full['meta_report_date'] = feature_df_full['meta_report_date'].apply(lambda x: datetime.strptime(x, '%Y-%m-%d'))
-    merged_df = pd.merge(feature_df_full, targets_df, left_on=['meta_symbol', 'meta_report_date'],
+    feature_df_full.to_csv("feature_df_full.csv", index=False)
+    targets_df.to_csv("targets_df.csv", index=False)
+    feature_df_full['meta_report_date'] = feature_df_full['meta_report_date'].astype(str)
+    merged_df = feature_df_full.merge(targets_df, left_on=['meta_symbol', 'meta_report_date'],
                         right_on=['symbol', 'report_date'], how='inner')
     #Transform features in range [0,1]
     merged_df[feature_cols] = merged_df[feature_cols]/100.0
