@@ -7,8 +7,31 @@ This repository contains a set of tools and scripts designed to enhance stock in
 1. **download_10k.py**: This Python script downloads 10-K filings of companies from the SEC website, which contain crucial financial information.
 
 2. **convert_html_to_pdf.py**: Converts HTML files to PDF files. PDFs are preferred due to their token efficiency for further analysis.
+  - Alternative way
+    - Use `xvfb` and `wkhtmltopdf`
+    ```
+    sudo apt-get install wkhtmltopdf
+    sudo apt-get install xvfb
+    ```
 
 3. **make_targets.py**: Generates a DataFrame of stock tickers with target values of different time resolutions, which can be used as investment targets for a Machine Learning model.
+  - If you really want to use openbb, you need to run these:
+  ```
+  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+  source "$HOME/.cargo/env"
+  sudo apt-get install libglib2.0-dev
+  sudo apt-get install libgtk-3-dev
+  sudo apt-get install libsoup2.4-dev
+  sudo apt-get install libjavascriptcoregtk-4.0-dev
+  sudo apt-get install libwebkit2gtk-4.0-dev
+  sudo apt-get install libbz2-dev
+  sudo apt-get install libsqlite3-dev
+  pip3.9 install openbb
+  ```
+  - Alternative way:
+    - Use `yfinance`
+    - `make_target_yf.py`
+
 
 4. **embeddings_save.py**: Generates embeddings of PDF files and saves them using Cromadb. These embeddings are numerical representations of the textual content in annual reports.
 
