@@ -12,12 +12,21 @@ from datetime import datetime, timedelta
 from scipy import stats
 import numpy as np
 import pandas as pd
+import sqlite3
 
 # from openbb_terminal.sdk import openbb
 from pandas_datareader import data as pdr
 import yfinance as yf
 
 yf.pdr_override()
+
+
+def get_stock_price(symbol, start, end, conn):
+    sql = f"SELECT * FROM price_table where symbol='{symbol}' and Date>='{start}' and Date<='{end}'"
+    data = pd.read_sql(sql, conn)
+    data["Date"] = pd.to_datetime(data.Date)
+    data.set_index(keys="Date", inplace=True)
+    return data
 
 
 def get_ar_dates(symbol, config_dict):
@@ -123,7 +132,9 @@ def get_all_targets(price_data, start_date, num_days_12m, prepend_string):
     return target_returns_dict
 
 
-def make_targets(symbol, start_date, end_date, price_data_sp500, config_dict):
+def make_targets(
+    symbol, start_date, end_date, price_data_sp500, config_dict, conn=None
+):
     """
     Function to generate target return information for each symbol based on
     annual report dates
@@ -137,7 +148,10 @@ def make_targets(symbol, start_date, end_date, price_data_sp500, config_dict):
     """
     # price_data = openbb.stocks.load(symbol, start_date=start_date, end_date=end_date,
     #                                 verbose=False)
-    price_data = pdr.get_data_yahoo(symbol, start=start_date, end=end_date)
+    if conn is None:
+        price_data = pdr.get_data_yahoo(symbol, start=start_date, end=end_date)
+    else:
+        price_data = get_stock_price(symbol, start=start_date, end=end_date, conn=conn)
 
     ar_dates = get_ar_dates(symbol, config_dict)
     df = pd.DataFrame()
@@ -167,7 +181,7 @@ def make_targets(symbol, start_date, end_date, price_data_sp500, config_dict):
     return df
 
 
-def make_targets_all_symbols(start_date, end_date, config_dict):
+def make_targets_all_symbols(start_date, end_date, config_dict, conn):
     """
     Function to return the complete dataframe for all symbols and all annual report date periods
     """
@@ -183,7 +197,9 @@ def make_targets_all_symbols(start_date, end_date, config_dict):
     full_df = pd.DataFrame()
     # Iterate over all symbols in the directory
     for i, symbol in enumerate(symbol_names):
-        df = make_targets(symbol, start_date, end_date, price_data_sp500, config_dict)
+        df = make_targets(
+            symbol, start_date, end_date, price_data_sp500, config_dict, conn
+        )
         full_df = pd.concat([full_df, df], ignore_index=True)
         print(f"Completed: {i + 1}/{len(symbol_names)}")
     return full_df
@@ -228,15 +244,22 @@ def main(args):
     """
     with open(args.config_path, encoding="utf8") as json_file:
         config_dict = json.load(json_file)
-    start_date = "2002-01-01"
-    end_date = "2023-12-31"
-    targets_df = make_targets_all_symbols(start_date, end_date, config_dict)
+    start_date = args.start
+    if args.start is None:
+        start_date = "2002-01-01"
+    end_date = datetime.now().strftime("%Y-%m-%d")
+    if args.sqlite:
+        conn = sqlite3.connect(args.sqlite)
+    else:
+        conn = None
+    targets_df = make_targets_all_symbols(start_date, end_date, config_dict, conn)
     targets_df_filtered = targets_df.loc[lambda x: ~(x.isnull().any(axis=1))]
     # Create a column called era which denotes the year of annual report filing
     targets_df_filtered["era"] = targets_df_filtered["report_date"].apply(
         lambda x: x.year
     )
-    # Drop duplicates if they exist. Could be if consecutive annual reports are published in same year.
+    # Drop duplicates if they exist.
+    # Could be if consecutive annual reports are published in same year.
     targets_df_filtered_dedup = targets_df_filtered.drop_duplicates(
         subset=["era", "symbol"]
     ).reset_index(drop=True)
@@ -275,6 +298,18 @@ if __name__ == "__main__":
         type=str,
         required=True,
         help="""Full path of config.json""",
+    )
+
+    parser.add_argument(
+        "--sqlite",
+        type=str,
+        default=None,
+        help="sqlite database of price, it will get the price from yahoo if it's None",
+    )
+    parser.add_argument(
+        "--start",
+        type=str,
+        help="start date",
     )
     main(args=parser.parse_args())
     sys.exit(0)
