@@ -4,7 +4,8 @@ Make targets from yahoo finance
 
 import os
 import glob
-import pickle
+
+# import pickle
 import json
 import sys
 import argparse
@@ -19,6 +20,18 @@ from pandas_datareader import data as pdr
 import yfinance as yf
 
 yf.pdr_override()
+
+CONN = sqlite3.connect("price.sqlite")
+DATE = (datetime.now() - timedelta(days=365 * 2)).strftime("%Y-%m-%d")
+ALL_DATA = pd.read_sql(f"SELECT * FROM price_table where Date>='{DATE}'", CONN)
+# OLD_DATA = pickle.load(open("df_20240228.pkl", "rb"))
+
+
+def get_symbol_price(symbol):
+    data = ALL_DATA[ALL_DATA.symbol == symbol]
+    data["Date"] = pd.to_datetime(data.Date)
+    data.set_index(keys="Date", inplace=True)
+    return data
 
 
 def get_stock_price(symbol, start, end, conn):
@@ -133,7 +146,13 @@ def get_all_targets(price_data, start_date, num_days_12m, prepend_string):
 
 
 def make_targets(
-    symbol, start_date, end_date, price_data_sp500, config_dict, conn=None
+    symbol,
+    start_date,
+    end_date,
+    price_data_sp500,
+    config_dict,
+    conn=None,
+    date="2023-02-27",
 ):
     """
     Function to generate target return information for each symbol based on
@@ -151,9 +170,11 @@ def make_targets(
     if conn is None:
         price_data = pdr.get_data_yahoo(symbol, start=start_date, end=end_date)
     else:
-        price_data = get_stock_price(symbol, start=start_date, end=end_date, conn=conn)
+        # price_data = get_stock_price(symbol, start=start_date, end=end_date, conn=conn)
+        price_data = get_symbol_price(symbol)
 
-    ar_dates = get_ar_dates(symbol, config_dict)
+    ar_dates = pd.DataFrame({"date": get_ar_dates(symbol, config_dict)})
+    ar_dates = ar_dates[ar_dates.date > date].date.values.tolist()
     df = pd.DataFrame()
     for i in range(len(ar_dates) - 1):
         curr_report_date = datetime.strptime(ar_dates[i], "%Y-%m-%d")
@@ -192,16 +213,21 @@ def make_targets_all_symbols(start_date, end_date, config_dict, conn):
         )
         if os.path.isdir(folder)
     ]
+    symbol_names.sort()
     price_data_sp500 = pdr.get_data_yahoo("^GSPC", start=start_date, end=end_date)
-
+    connect = sqlite3.connect("target.sqlite")
+    date = pd.read_sql("SELECT MAX(report_date) as date FROM target", connect)
+    date = date.date.values[0]
+    connect.close()
     full_df = pd.DataFrame()
     # Iterate over all symbols in the directory
     for i, symbol in enumerate(symbol_names):
+
         df = make_targets(
-            symbol, start_date, end_date, price_data_sp500, config_dict, conn
+            symbol, start_date, end_date, price_data_sp500, config_dict, conn, date
         )
         full_df = pd.concat([full_df, df], ignore_index=True)
-        print(f"Completed: {i + 1}/{len(symbol_names)}")
+        print(f"Completed: {i + 1}/{len(symbol_names)}, {datetime.now()}")
     return full_df
 
 
@@ -286,8 +312,13 @@ def main(args):
             ["0.0", "0.25", "0.5", "0.75", "1.0"],
         )
     )
-    with open(config_dict["targets_df_path"], "wb") as handle:
-        pickle.dump(targets_df_filtered_dedup, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    connect = sqlite3.connect("target.sqlite")
+    targets_df_filtered_dedup.to_sql(
+        "target", con=connect, index=False, if_exists="append"
+    )
+    connect.close()
+    # with open(config_dict["targets_df_path"], "wb") as handle:
+    #     pickle.dump(targets_df_filtered_dedup, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 
 if __name__ == "__main__":
