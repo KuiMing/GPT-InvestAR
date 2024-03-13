@@ -20,6 +20,7 @@ from gpt_scores_as_features import (
 __import__("pysqlite3")
 
 sys.modules["sqlite3"] = sys.modules.pop("pysqlite3")
+import sqlite3
 
 
 def get_gpt_generated_feature_dict(query_engine, feature_name, question):
@@ -56,11 +57,14 @@ def main(args):
     """
     main function
     """
+
     with open(args.config_path, encoding="utf8") as json_file:
         config_dict = json.load(json_file)
     with open(args.questions_path, encoding="utf8") as json_file:
         questions_dict = json.load(json_file)
-
+    os.environ["OPENAI_API_KEY"] = config_dict["openai_api_key"]
+    os.environ["OPENAI_API_VERSION"] = config_dict["openai_api_version"]
+    os.environ["AZURE_OPENAI_ENDPOINT"] = config_dict["azure_openai_endpoint"]
     llm, embedding_model = initialize_and_return_models(config_dict)
 
     embeddings_directory = args.save_directory
@@ -69,11 +73,17 @@ def main(args):
     path.sort()
     path = pd.DataFrame({"path": path})
     path["date"] = path.path.str.extract(r"([0-9]{4}-[0-9]{2}-[0-9]{2})")
+    path["symbol"] = path.path.str.extract(r"([A-Z]*/2)")
+    path["symbol"] = path.symbol.str.replace("/2", "")
+    connect = sqlite3.connect(args.result_path)
     date = args.date
     if date is None:
-        date = datetime.now().strftime("%Y-%m-%d")
-    path = path[path.date >= date]
+        date = pd.read_sql("SELECT MAX(report_date) as date FROM feature", connect)
+        date = date.date.values[0]
+    path = path[path.date > date]
+
     for ar_date, symbol in path[["date", "symbol"]].values:
+        print(ar_date, symbol)
 
         index = load_index(llm, embedding_model, embeddings_directory, symbol, ar_date)
         text_qa_template = get_systemprompt_template(config_dict)
@@ -86,12 +96,14 @@ def main(args):
             )
         gpt_feature_df = pd.DataFrame.from_dict(gpt_feature_dict, orient="index").T
         gpt_feature_df.columns = [f"feature_{c}" for c in gpt_feature_df.columns]
-        gpt_feature_df["meta_symbol"] = symbol
-        gpt_feature_df["meta_report_date"] = ar_date
-        if not os.path.exists(args.result_path):
-            gpt_feature_df.to_csv(args.result_path, index=False)
-        else:
-            gpt_feature_df.to_csv(args.result_path, index=False, mode="a", header=False)
+        gpt_feature_df["symbol"] = symbol
+        gpt_feature_df["report_date"] = ar_date
+        gpt_feature_df.to_sql("feature", connect, index=False, if_exists="append")
+        # if not os.path.exists(args.result_path):
+        #     gpt_feature_df.to_csv(args.result_path, index=False)
+        # else:
+        #     gpt_feature_df.to_csv(args.result_path, index=False, mode="a", header=False)
+    connect.close()
 
 
 if __name__ == "__main__":
@@ -121,7 +133,7 @@ if __name__ == "__main__":
     parser.add_argument("--date", type=str, default=None, help="the starting date")
     parser.add_argument(
         "--result_path",
-        default="inference_feature.csv",
+        default="feature.sqlite",
         type=str,
         help="path of inference result",
     )
