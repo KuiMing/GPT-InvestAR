@@ -6,7 +6,7 @@ import os
 import glob
 import json
 import argparse
-from datetime import datetime
+from datetime import datetime, timedelta
 import sqlite3
 from pandas_datareader import data as pdr
 import yfinance as yf
@@ -22,7 +22,7 @@ def main(args):
     conn = sqlite3.connect(args.sqlite)
     start_date = args.start
     if args.start is None:
-        start_date = datetime.now().strftime("%Y-%m-%d")
+        start_date = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
     end_date = datetime.now().strftime("%Y-%m-%d")
     symbol_names = [
         os.path.basename(folder)
