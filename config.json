@@ -1,5 +1,7 @@
 {
     "financial_modelling_prep_api_key":"<your own fmp key>",
+    "azure_openai_endpoint":"<your endpoint>",
+    "openai_api_version":"<your_version>",
     "openai_api_key":"<your own openai key>",
     "annual_reports_html_save_directory":"<directory where fetched 10-k html files will be saved>",
     "annual_reports_pdf_save_directory":"<directory where pdf files converted from html files will be saved>",
