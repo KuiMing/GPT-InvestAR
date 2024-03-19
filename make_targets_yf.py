@@ -23,7 +23,11 @@ yf.pdr_override()
 
 CONN = sqlite3.connect("price.sqlite")
 DATE = (datetime.now() - timedelta(days=365 * 2)).strftime("%Y-%m-%d")
-ALL_DATA = pd.read_sql(f"SELECT * FROM price_table where Date>='{DATE}'", CONN)
+try:
+    ALL_DATA = pd.read_sql(f"SELECT * FROM price_table where Date>='{DATE}'", CONN)
+# pylint: disable=broad-exception-caught
+except Exception:
+    pass
 # OLD_DATA = pickle.load(open("df_20240228.pkl", "rb"))
 
 
