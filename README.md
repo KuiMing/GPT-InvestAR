@@ -5,6 +5,10 @@ Enhancing Stock Investment Strategies through Annual Report Analysis with Large 
 This repository contains a set of tools and scripts designed to enhance stock investment strategies through the analysis of annual reports using Large Language Models. The components in this repository are organized as follows:
 
 1. **download_10k.py**: This Python script downloads 10-K filings of companies from the SEC website, which contain crucial financial information.
+- Alternative way:
+    - `cd edgar-crawler`
+    - edit `config.json`
+    - excute `edgar_crawler.py`
 
 2. **convert_html_to_pdf.py**: Converts HTML files to PDF files. PDFs are preferred due to their token efficiency for further analysis.
   - Alternative way
