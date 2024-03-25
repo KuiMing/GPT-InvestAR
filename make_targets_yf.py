@@ -347,4 +347,5 @@ if __name__ == "__main__":
         help="start date",
     )
     main(args=parser.parse_args())
+    CONN.close()
     sys.exit(0)
