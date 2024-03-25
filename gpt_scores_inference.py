@@ -5,7 +5,6 @@ Get GPT scores with questions for inference
 import os
 import sys
 import argparse
-from datetime import datetime
 import json
 import glob
 import time
@@ -96,6 +95,10 @@ def main(args):
             )
         gpt_feature_df = pd.DataFrame.from_dict(gpt_feature_dict, orient="index").T
         gpt_feature_df.columns = [f"feature_{c}" for c in gpt_feature_df.columns]
+        gpt_feature_df.loc[:, gpt_feature_df.columns] /= 100
+        for i in gpt_feature_df.columns:
+            gpt_feature_df.loc[gpt_feature_df[i] > 1, i] = 1
+            gpt_feature_df.loc[gpt_feature_df[i] < 0, i] = 0
         gpt_feature_df["symbol"] = symbol
         gpt_feature_df["report_date"] = ar_date
         gpt_feature_df.to_sql("feature", connect, index=False, if_exists="append")
