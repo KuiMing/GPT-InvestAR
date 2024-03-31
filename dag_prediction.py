@@ -37,6 +37,6 @@ with DAG(
     t7 = BashOperator(
         task_id="prediction",
         depends_on_past=False,
-        bash_command="python3.9 predict_top5.py ",
+        bash_command="python3.9 predict_top_5.py ",
     )
     t6 >> t7
