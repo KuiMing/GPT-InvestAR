@@ -216,7 +216,8 @@ def main():
     df.loc[df.end_date.isna(), "end_date"] = df.loc[
         df.end_date.isna(), "report_date"
     ] + timedelta(days=365)
-    years = [str(year - 1), str(year)]
+    years = [year - 1, year]
+    df["year"] = df.end_date.astype(str).str.slice(0, 4).astype(int)
     output = rolling_fit_predict(df, years, feature_cols=model["feature"])
     _, stock_list = rolling_gptprod_profit(output[output.year.isin(years)], price)
     line_broadcast_flex(stock_list.tail(5).to_dict("records"))
