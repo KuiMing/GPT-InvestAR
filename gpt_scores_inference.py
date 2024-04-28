@@ -75,20 +75,15 @@ def main(args):
     path["symbol"] = path.path.str.extract(r"([A-Z]*/2)")
     path["symbol"] = path.symbol.str.replace("/2", "")
     connect = sqlite3.connect(args.result_path)
-    date = args.date
-    if date is None:
-        date = pd.read_sql("SELECT MAX(report_date) as date FROM feature", connect)
-        date = date.date.values[0]
-    path = path[path.date > date]
-    origin_data = pd.read_sql(
-        f"SELECT * FROM feature where DATE(report_date) > DATE('{date}')", connect
+
+    feature = pd.read_sql(
+        "SELECT symbol, report_date as date, 1 as tag FROM feature", con=connect
     )
+    path = path.merge(feature, on=["date", "symbol"], how="left")
+    path = path[path.tag.isna()]
+
     for ar_date, symbol in path[["date", "symbol"]].values:
         print(ar_date, symbol)
-        if not origin_data[
-            (origin_data.symbol == symbol) & (origin_data.report_date == ar_date)
-        ].empty:
-            continue
 
         index = load_index(llm, embedding_model, embeddings_directory, symbol, ar_date)
         text_qa_template = get_systemprompt_template(config_dict)
@@ -139,7 +134,6 @@ if __name__ == "__main__":
         required=True,
         help="""absolute path of chroma""",
     )
-    parser.add_argument("--date", type=str, default=None, help="the starting date")
     parser.add_argument(
         "--result_path",
         default="feature.sqlite",
