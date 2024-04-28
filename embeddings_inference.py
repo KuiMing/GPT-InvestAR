@@ -14,6 +14,16 @@ from langchain.embeddings.huggingface import HuggingFaceEmbeddings
 from embeddings_save import save_index
 
 
+def get_folders(root_path):
+    path = glob.glob(f"{root_path}/*/*")
+    path.sort()
+    path = pd.DataFrame({"path": path})
+    path["date"] = path.path.str.extract(r"([0-9]{4}-[0-9]{2}-[0-9]{2})")
+    path["symbol"] = path.path.str.extract(r"([A-Z]*/2)")
+    path["symbol"] = path.symbol.str.replace("/2", "")
+    return path
+
+
 def main(args) -> None:
     """
     main function
@@ -28,14 +38,24 @@ def main(args) -> None:
         HuggingFaceEmbeddings(model_name="sentence-transformers/all-mpnet-base-v2")
     )
 
-    path = glob.glob("html/*/*")
-    path.sort()
-    path = pd.DataFrame({"path": path})
-    path["date"] = path.path.str.extract(r"([0-9]{4}-[0-9]{2}-[0-9]{2})")
+    # path = glob.glob("html/*/*")
+    # path.sort()
+    # path = pd.DataFrame({"path": path})
+    # path["date"] = path.path.str.extract(r"([0-9]{4}-[0-9]{2}-[0-9]{2})")
+
     date = args.date
     if date is None:
-        date = datetime.now().strftime("%Y-%m-%d")
-    path = path[path.date >= date]
+        # date = datetime.now().strftime("%Y-%m-%d")
+        pdf_path = get_folders("pdf")
+        pdf_path = pdf_path[pdf_path.date > "2024"]
+        embedding_path = get_folders("inference_chroma")
+        embedding_path = embedding_path[embedding_path.date > "2024"]
+        path = pdf_path.merge(
+            embedding_path[["date", "symbol"]], on=["date", "symbol"], how="right"
+        )
+        path = path[path.path.isna()]
+    else:
+        path = path[path.date >= date]
     for i in path.iterrows():
         # print(i[1]['path'])
         start_time = time.time()
