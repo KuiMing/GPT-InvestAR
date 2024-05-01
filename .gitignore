@@ -1,2 +1,4 @@
 config.json
 *.DS_Store
+*.ipynb
+*.sqlite
