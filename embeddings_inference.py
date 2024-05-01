@@ -5,7 +5,7 @@ Create embedding vector for inference
 import os
 import glob
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 import argparse
 import pandas as pd
@@ -46,14 +46,18 @@ def main(args) -> None:
     date = args.date
     if date is None:
         # date = datetime.now().strftime("%Y-%m-%d")
+        start = (datetime.now() - timedelta(days=60)).strftime("%Y-%m-%d")
         pdf_path = get_folders("pdf")
-        pdf_path = pdf_path[pdf_path.date > "2024"]
+        pdf_path = pdf_path[pdf_path.date > start]
         embedding_path = get_folders("inference_chroma")
-        embedding_path = embedding_path[embedding_path.date > "2024"]
+        embedding_path = embedding_path[embedding_path.date > start]
+        embedding_path["exist"] = 1
         path = pdf_path.merge(
-            embedding_path[["date", "symbol"]], on=["date", "symbol"], how="right"
+            embedding_path[["date", "symbol", "exist"]],
+            on=["date", "symbol"],
+            how="left",
         )
-        path = path[path.path.isna()]
+        path = path[path.exist.isna()]
     else:
         path = path[path.date >= date]
     for i in path.iterrows():
