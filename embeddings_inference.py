@@ -14,7 +14,17 @@ from langchain.embeddings.huggingface import HuggingFaceEmbeddings
 from embeddings_save import save_index
 
 
-def get_folders(root_path):
+def get_folders(root_path: str) -> pd.DataFrame:
+    """
+    Retrieve a list of folders from the specified root path,
+    and extract the symbols and the report dates.
+
+    Args:
+        root_path (str): The root path from which to retrieve the folders.
+
+    Returns:
+        pandas.DataFrame: A DataFrame containing the paths, dates, and symbols of the folders.
+    """
     path = glob.glob(f"{root_path}/*/*")
     path.sort()
     path = pd.DataFrame({"path": path})
