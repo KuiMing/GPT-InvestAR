@@ -8,7 +8,7 @@ from airflow.operators.bash import BashOperator
 
 date = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
 with DAG(
-    "get-annual-report-pdf",
+    "training",
     # These args will get passed on to each operator
     # You can override them on a per-task basis during operator initialization
     default_args={
@@ -20,10 +20,10 @@ with DAG(
         "retry_delay": timedelta(minutes=5),
     },
     description="A test DAG",
-    schedule="5 9 1 * *",
+    schedule="0 12 1 1 *",
     start_date=datetime(2024, 3, 6),
     catchup=False,
-    tags=["Daily"],
+    tags=["Yearly"],
 ) as dag:
 
     # t1, t2 and t3 are examples of tasks created by instantiating operators
@@ -31,12 +31,13 @@ with DAG(
     t6 = BashOperator(
         task_id="make-target",
         depends_on_past=False,
-        bash_command="python3.9 make_targets_yf.py --sqlite price.sqlite",
+        bash_command="cd ../GPT-InvestAR && python3.9 make_targets_yf.py --config_path config.json --sqlite price.sqlite",
     )
 
-    t7 = BashOperator(
-        task_id="prediction",
+    t8 = BashOperator(
+        task_id="training",
         depends_on_past=False,
-        bash_command="python3.9 predict_top_5.py ",
+        bash_command="cd ../GPT-InvestAR && python3.9 update_model.py",
     )
-    t6 >> t7
+
+    t6 >> t8

@@ -5,8 +5,6 @@ from airflow.operators.bash import BashOperator
 date = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
 with DAG(
     "get-annual-report-pdf",
-    # These args will get passed on to each operator
-    # You can override them on a per-task basis during operator initialization
     default_args={
         "depends_on_past": False,
         "email": ["airflow@example.com"],
@@ -23,18 +21,16 @@ with DAG(
     max_active_runs=1,
 ) as dag:
 
-    # t1, t2 and t3 are examples of tasks created by instantiating operators
-
     t3 = BashOperator(
         task_id="pdf-to-embedding",
         depends_on_past=False,
-        bash_command="python3.9 embeddings_inference.py --config_path config.json --save_directory inference_chroma/",
+        bash_command="cd ../GPT-InvestAR && python3.9 embeddings_inference.py --config_path config.json --save_directory inference_chroma/",
     )
 
     t5 = BashOperator(
         task_id="get-feature",
         depends_on_past=False,
-        bash_command="python3.9 gpt_score_inference.py --save_directory inference_chroma/",
+        bash_command="cd ../GPT-InvestAR && python3.9 gpt_score_inference.py --save_directory inference_chroma/",
     )
 
     t3 >> t5
