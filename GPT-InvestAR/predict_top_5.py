@@ -74,6 +74,8 @@ def rolling_gptprod_profit(df_test, price):
                 consecutive_profit_months = 0
 
         tmp["stop_trading"] = stop_trading
+        tmp["monthly_return"] = monthly_return
+        #         tmp['monthly_return_sum'] = monthly_return_sum
         stock_list = stock_list.append(tmp, ignore_index=True)
         cumulative_return.append(total_return)
 
@@ -206,6 +208,7 @@ def main():
     connect.close()
 
     year = int(datetime.now().strftime("%Y"))
+    month = int(datetime.now().strftime("%m"))
     df = feature.merge(
         target[["symbol", "report_date", "target_ml", "end_date"]],
         on=["symbol", "report_date"],
@@ -216,10 +219,19 @@ def main():
     df.loc[df.end_date.isna(), "end_date"] = df.loc[
         df.end_date.isna(), "report_date"
     ] + timedelta(days=365)
-    years = [year - 1, year]
+
     df["year"] = df.end_date.astype(str).str.slice(0, 4).astype(int)
+    if df.year.max() > year:
+        years = [year - 1, year]
+    else:
+        years = [year - 2, year - 1]
+    print(f"max year:{df.year.max()}, this year:{year}")
     output = rolling_fit_predict(df, years, feature_cols=model["feature"])
-    _, stock_list = rolling_gptprod_profit(output[output.year.isin(years)], price)
+    years.append(year + 1)
+    cumulative_return, stock_list = rolling_gptprod_profit(
+        output[output.year.isin(years)], price
+    )
+    print(stock_list.tail(10))
     line_broadcast_flex(stock_list.tail(5).to_dict("records"))
 
 
