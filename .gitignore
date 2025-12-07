@@ -2,3 +2,4 @@ config.json
 *.DS_Store
 *.ipynb
 *.sqlite
+__pycache__/
