@@ -12,23 +12,19 @@ from pandas_datareader import data as pdr
 import yfinance as yf
 import pandas as pd
 
-yf.pdr_override()
+# yf.pdr_override()
 
 
 def is_after_splits(symbol):
-    """
-    check if the stock has splits after the last update
-    """
     stock = yf.Ticker(symbol)
     splits = stock.splits
+    if len(splits) == 0:
+        return False
     today = (datetime.today() - timedelta(days=1)).strftime("%Y-%m-%d")
     return today in splits.index.strftime("%Y-%m-%d")
 
 
 def update_after_split(symbol, conn):
-    """
-    update the price data after splits
-    """
     sql = f"SELECT * FROM price_table where symbol == '{symbol}'"
     history = pd.read_sql(sql, con=conn)
     today = datetime.today().strftime("%Y-%m-%d")
@@ -36,6 +32,16 @@ def update_after_split(symbol, conn):
     cursor = conn.cursor()
     cursor.execute("DELETE FROM price_table WHERE symbol = ?", (symbol,))
     price_data.to_sql("price_table", con=conn, if_exists="append")
+
+
+def get_stock_price(ticker, end=None, start="2020-01-01"):
+    if end == None:
+        end = datetime.now().strftime("%Y-%m-%d")
+    output = yf.download(ticker, start=start, end=end)
+    output.columns = ["Close", "High", "Low", "Open", "Volume"]
+    output["Adj Close"] = output["Close"]
+    output = output[["High", "Low", "Open", "Close", "Adj Close", "Volume"]]
+    return output
 
 
 def main(args):
@@ -47,10 +53,12 @@ def main(args):
     start_date = args.start
     if args.start is None:
         # start_date = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
-        sp500 = pdr.get_data_yahoo("^GSPC")
+        sp500 = get_stock_price("^GSPC")
         sp500.reset_index(inplace=True)
         max_date = pd.read_sql("SELECT MAX(Date) as Date FROM price_table", con=conn)
         data = sp500[sp500.Date > max_date.Date.values[-1]]
+        #         max_date = '2025-02-14'
+        #         data = sp500[sp500.Date > max_date]
         if not data.empty:
             data.reset_index(inplace=True, drop=True)
             start_date = pd.to_datetime(data.Date)[0].strftime("%Y-%m-%d")
@@ -65,7 +73,10 @@ def main(args):
     ]
 
     for symbol in symbol_names:
-        price_data = pdr.get_data_yahoo(symbol, start=start_date, end=end_date)
+        try:
+            price_data = get_stock_price(symbol, start=start_date, end=end_date)
+        except:
+            print(f"{symbol} is not found")
         price_data["symbol"] = symbol
         price_data.to_sql("price_table", con=conn, if_exists="append")
         if is_after_splits(symbol):
