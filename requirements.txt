@@ -5,8 +5,9 @@ pandas
 pypdf
 pysqlite3-binary
 chromadb
-openai==1.3.6
+openai==1.13.3
 sentence-transformers
 llama-cpp-python
 llama-index==0.8.69.post2
-langchain==0.0.343
+langchain==0.1.11
+langchain-openai==0.0.8
