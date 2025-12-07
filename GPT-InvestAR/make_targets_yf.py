@@ -4,8 +4,7 @@ Make targets from yahoo finance
 
 import os
 import glob
-
-# import pickle
+import pickle
 import json
 import sys
 import argparse
@@ -19,16 +18,11 @@ import sqlite3
 from pandas_datareader import data as pdr
 import yfinance as yf
 
-yf.pdr_override()
+# yf.pdr_override()
 
 CONN = sqlite3.connect("price.sqlite")
-DATE = (datetime.now() - timedelta(days=365 * 2)).strftime("%Y-%m-%d")
-try:
-    ALL_DATA = pd.read_sql(f"SELECT * FROM price_table where Date>='{DATE}'", CONN)
-# pylint: disable=broad-exception-caught
-except Exception:
-    pass
-# OLD_DATA = pickle.load(open("df_20240228.pkl", "rb"))
+ALL_DATA = pd.read_sql("SELECT * FROM price_table where Date>='2023-01-01'", CONN)
+OLD_DATA = pickle.load(open("df_20240228.pkl", "rb"))
 
 
 def get_symbol_price(symbol):
@@ -150,13 +144,7 @@ def get_all_targets(price_data, start_date, num_days_12m, prepend_string):
 
 
 def make_targets(
-    symbol,
-    start_date,
-    end_date,
-    price_data_sp500,
-    config_dict,
-    conn=None,
-    date="2023-02-27",
+    symbol, start_date, end_date, price_data_sp500, config_dict, conn=None
 ):
     """
     Function to generate target return information for each symbol based on
@@ -177,16 +165,24 @@ def make_targets(
         # price_data = get_stock_price(symbol, start=start_date, end=end_date, conn=conn)
         price_data = get_symbol_price(symbol)
 
-    ar_dates = pd.DataFrame({"date": get_ar_dates(symbol, config_dict)})
-    ar_dates = ar_dates[ar_dates.date > date].date.values.tolist()
-    df = pd.DataFrame()
-    for i in range(len(ar_dates) - 1):
+    ar_dates = get_ar_dates(symbol, config_dict)
+    # df = pd.DataFrame()
+    df = OLD_DATA.copy()
+    df = df[df.symbol == symbol]
+    df.reset_index(drop=True, inplace=True)
+    print(symbol)
+    for i, j in enumerate(ar_dates):
+        if j in df.report_date:
+            continue
         curr_report_date = datetime.strptime(ar_dates[i], "%Y-%m-%d")
         # Start and end dates are offset by 2 days to be conservative and allowing the price to settle.
         curr_start_date = datetime.strptime(ar_dates[i], "%Y-%m-%d") + timedelta(days=2)
-        curr_end_date_12m = datetime.strptime(ar_dates[i + 1], "%Y-%m-%d") - timedelta(
-            days=2
-        )
+        try:
+            curr_end_date_12m = datetime.strptime(
+                ar_dates[i + 1], "%Y-%m-%d"
+            ) - timedelta(days=2)
+        except IndexError:
+            curr_end_date_12m = curr_start_date + timedelta(days=200)
         num_days_12m = (curr_end_date_12m - curr_start_date).days
         if num_days_12m < 200:
             continue
@@ -218,17 +214,15 @@ def make_targets_all_symbols(start_date, end_date, config_dict, conn):
         if os.path.isdir(folder)
     ]
     symbol_names.sort()
-    price_data_sp500 = pdr.get_data_yahoo("^GSPC", start=start_date, end=end_date)
-    connect = sqlite3.connect("target.sqlite")
-    date = pd.read_sql("SELECT MAX(report_date) as date FROM target", connect)
-    date = date.date.values[0]
-    connect.close()
+    #     price_data_sp500 = pdr.get_data_yahoo("^GSPC", start=start_date, end=end_date)
+    price_data_sp500 = yf.download("^GSPC", start=start_date, end=end_date)
+    price_data_sp500.columns = ["Close", "High", "Low", "Open", "Volume"]
     full_df = pd.DataFrame()
     # Iterate over all symbols in the directory
     for i, symbol in enumerate(symbol_names):
 
         df = make_targets(
-            symbol, start_date, end_date, price_data_sp500, config_dict, conn, date
+            symbol, start_date, end_date, price_data_sp500, config_dict, conn
         )
         full_df = pd.concat([full_df, df], ignore_index=True)
         print(f"Completed: {i + 1}/{len(symbol_names)}, {datetime.now()}")
@@ -316,13 +310,8 @@ def main(args):
             ["0.0", "0.25", "0.5", "0.75", "1.0"],
         )
     )
-    connect = sqlite3.connect("target.sqlite")
-    targets_df_filtered_dedup.to_sql(
-        "target", con=connect, index=False, if_exists="append"
-    )
-    connect.close()
-    # with open(config_dict["targets_df_path"], "wb") as handle:
-    #     pickle.dump(targets_df_filtered_dedup, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    with open(config_dict["targets_df_path"], "wb") as handle:
+        pickle.dump(targets_df_filtered_dedup, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 
 if __name__ == "__main__":
