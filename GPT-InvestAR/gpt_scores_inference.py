@@ -28,12 +28,11 @@ def get_gpt_generated_feature_dict(query_engine, feature_name, question):
         A dictionary with keys as question identifiers and value as GPT scores.
     """
     response_dict = {}
-    #     for feature_name, question in questions_dict.items():
-    # Sleep for a short duration, not to exceed openai rate limits.
     time.sleep(1)
+    #     response = query_engine.query(question)
+    #     response_dict[feature_name] = (response.response.replace("\n" ,"").split(":")[-1].replace("}" ,""))
     try:
         response = query_engine.query(question)
-    # pylint: disable=broad-except
     except Exception:
         time.sleep(60)
         response_dict = get_gpt_generated_feature_dict(
@@ -41,9 +40,8 @@ def get_gpt_generated_feature_dict(query_engine, feature_name, question):
         )
     try:
         response_dict[feature_name] = int(
-            response.response.split(":")[-1].replace("}", "")
+            float((response.response.replace("\n", "").split(":")[-1].replace("}", "")))
         )
-    # pylint: disable=broad-except
     except Exception:
         response_dict = get_gpt_generated_feature_dict(
             query_engine, feature_name, question
@@ -103,10 +101,6 @@ def main(args):
         gpt_feature_df["symbol"] = symbol
         gpt_feature_df["report_date"] = ar_date
         gpt_feature_df.to_sql("feature", connect, index=False, if_exists="append")
-        # if not os.path.exists(args.result_path):
-        #     gpt_feature_df.to_csv(args.result_path, index=False)
-        # else:
-        #     gpt_feature_df.to_csv(args.result_path, index=False, mode="a", header=False)
     connect.close()
 
 
